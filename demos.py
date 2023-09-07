@@ -12,6 +12,7 @@ _ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 _IMG_CITY = (_ASSETS_DIR / "city.jpg").as_posix()
 _IMG_TORII = (_ASSETS_DIR / "torii-gate.jpg").as_posix()
+_IMG_MOUNAIN = (_ASSETS_DIR / "mountain.jpg").as_posix()
 
 _VID_BBB = (_ASSETS_DIR / "bbb.mp4").as_posix()
 _VID_PIPER = (_ASSETS_DIR / "piper.mp4").as_posix()
@@ -373,6 +374,12 @@ def japanese_haiku(cfg):
     return ngl.Group(children=(bg, bg_filter, text))
 
 
+def _get_textured_quad(m):
+    media = ngl.Media(m.filename)
+    tex = ngl.Texture2D(data_src=media, mag_filter="linear", min_filter="linear")
+    return ngl.RenderTexture(tex)
+
+
 @scene(compat_specs="~=0.9")
 def masking(cfg):
     cfg.duration = 6
@@ -401,7 +408,7 @@ def masking(cfg):
     move_downup = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(move_downup_animkf))
 
     text_params = dict(
-        text="Stair\ncase",
+        text="Mission\ncase",
         font_files=op.join(op.dirname(__file__), "data", "AVGARDD_2.woff"),
         bg_opacity=0,
         aspect_ratio=cfg.aspect_ratio,
@@ -435,6 +442,74 @@ def masking(cfg):
     text = ngl.TimeRangeFilter(text, start=0, end=d)
 
     return ngl.Group(children=(bg, text))
+
+
+@scene(compat_specs="~=0.9")
+def mission_accepted(cfg):
+    cfg.aspect_ratio = (1, 1)
+    cfg.duration = 6
+
+    # Background
+    m0 = MediaInfo.from_filename(_IMG_MOUNAIN)
+    cfg.aspect_ratio = (m0.width, m0.height)
+    bg = _get_textured_quad(m0)
+
+    # "Mission" bouncing
+    animkf = [
+        ngl.AnimKeyFrameVec3(0, (0.0, 1.5, 0.0)),
+        ngl.AnimKeyFrameVec3(1, (0.0, 0.0, 0.0), "bounce_out"),
+    ]
+    bounce_down = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(animkf))
+    mission_text = ngl.Text(
+        text="Mission",
+        fg_color=(0, 0, 0),
+        effects=[
+            ngl.TextEffect(
+                start=0,
+                end=2,
+                target="char",
+                overlap=0.9,
+                transform=bounce_down,
+                random=True,
+            ),
+        ],
+        box_height=(0, 1, 0),
+        box_corner=(-1, -1 / 4, 0),
+        aspect_ratio=cfg.aspect_ratio,
+        bg_opacity=0,
+    )
+
+    # "Accepted" speed skewed
+    skew_amount = -45
+    skew_animkf = [
+        ngl.AnimKeyFrameVec3(0, (0, skew_amount, 0)),
+        ngl.AnimKeyFrameVec3(0.2, (0, skew_amount, 0), "exp_in"),
+        ngl.AnimKeyFrameVec3(1, (0, 0, 0), "elastic_out"),
+    ]
+    move_animkf = [
+        ngl.AnimKeyFrameVec3(0, (-3, 0, 0)),
+        ngl.AnimKeyFrameVec3(0.2, (-1, 0, 0), "exp_in"),
+        ngl.AnimKeyFrameVec3(1.0, (0, 0, 0), "elastic_out"),
+    ]
+    trf = ngl.Skew(ngl.Identity(), angles=ngl.AnimatedVec3(skew_animkf), anchor=(0, -1, 0))
+    trf = ngl.Translate(trf, vector=ngl.AnimatedVec3(move_animkf))
+    accepted_text = ngl.Text(
+        text="Accepted",
+        bg_opacity=0,
+        aspect_ratio=cfg.aspect_ratio,
+        box_height=(0, 1, 0),
+        box_corner=(-1, -1 + 1 / 3, 0),
+        effects=[
+            ngl.TextEffect(
+                start=2,
+                end=5,
+                transform=trf,
+            )
+        ],
+    )
+    accepted_text = ngl.TimeRangeFilter(accepted_text, start=2)
+
+    return ngl.Group(children=(bg, mission_text, accepted_text))
 
 
 @scene(compat_specs="~=0.9", controls=dict(bg_file=scene.File()))

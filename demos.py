@@ -606,3 +606,51 @@ def scopes(cfg, source=_VID_PIPER):
         ngl.RenderHistogram(stats=stats, mode="parade"),
     ]
     return autogrid_simple(scenes)
+
+
+@scene(controls=dict(apply_colormap=scene.Bool()))
+def filter_colormap(cfg: SceneCfg, apply_colormap=False):
+    p0 = ngl.UniformFloat(live_id="p0", value=0)
+    p1 = ngl.UniformFloat(live_id="p1", value=1 / 3)
+    p2 = ngl.UniformFloat(live_id="p2", value=2 / 3)
+    p3 = ngl.UniformFloat(live_id="p3", value=1)
+
+    c0 = ngl.UniformColor(live_id="c0", value=(0, 0, 0))
+    c1 = ngl.UniformColor(live_id="c1", value=(1, 0, 0))
+    c2 = ngl.UniformColor(live_id="c2", value=(0, 0, 1))
+    c3 = ngl.UniformColor(live_id="c3", value=(1, 1, 1))
+
+    m0 = MediaInfo.from_filename("/home/ux/samples/matrixbench_mpeg2.mpg")
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    media = ngl.Media(m0.filename)
+    tex = ngl.Texture2D(data_src=media)
+
+    colormap = ngl.FilterColorMap(
+        colorkeys=[
+            ngl.ColorKey(position=p0, color=c0),
+            ngl.ColorKey(position=p1, color=c1),
+            ngl.ColorKey(position=p2, color=c2),
+            ngl.ColorKey(position=p3, color=c3),
+        ]
+    )
+
+    gradient = ngl.RenderGradient4(
+        geometry=ngl.Quad(
+            height=(0, 0.3, 0),
+            width=(2, 0, 0),
+            corner=(-1, -1, 0),
+        ),
+        # Black to white grayscale from left to right
+        color_tl=(0, 0, 0),
+        color_bl=(0, 0, 0),
+        color_tr=(1, 1, 1),
+        color_br=(1, 1, 1),
+        linear=False,
+        filters=[colormap],
+    )
+
+    video = ngl.RenderTexture(tex, filters=[colormap] if apply_colormap else None)
+
+    return ngl.Group(children=[video, gradient])

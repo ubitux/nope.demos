@@ -12,6 +12,7 @@ _ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 _IMG_CITY = (_ASSETS_DIR / "city.jpg").as_posix()
 _IMG_TORII = (_ASSETS_DIR / "torii-gate.jpg").as_posix()
+_IMG_STAIRCASE = (_ASSETS_DIR / "gloomy-staircase.webp").as_posix()
 
 _VID_BBB = (_ASSETS_DIR / "bbb.mp4").as_posix()
 _VID_PIPER = (_ASSETS_DIR / "piper.mp4").as_posix()
@@ -19,6 +20,7 @@ _VID_ROYAUME = (_ASSETS_DIR / "le-royaume.mp4").as_posix()
 
 _FONT_SHIPPORI = (_ASSETS_DIR / "ShipporiMincho-Regular.ttf").as_posix()
 _FONT_UBUNTU = (_ASSETS_DIR / "Ubuntu-Light.ttf").as_posix()
+_FONT_POPPINS = (_ASSETS_DIR / "Poppins-Regular.ttf").as_posix()
 
 
 @scene(compat_specs="~=0.9")
@@ -467,3 +469,76 @@ def scopes(cfg, source=_VID_PIPER):
         ngl.RenderHistogram(stats=stats, mode="parade"),
     ]
     return autogrid_simple(scenes)
+
+
+def mask_with_geometry(cfg, scene, geometry, inverse=False):
+    mask = ngl.RenderColor(geometry=geometry, blending="dst_out" if inverse else "src_out", label="mask")
+    tex = ngl.Texture2D(mipmap_filter="linear", data_src=ngl.Group(children=[scene, mask]))
+    return ngl.RenderTexture(tex, blending="src_over")
+
+
+@scene(compat_specs="~=0.9")
+def staircase(cfg: SceneCfg):
+    cfg.duration = 6
+    d = cfg.duration - 1
+    easing = "quartic_out"
+    ratio = 2 / 3
+
+    m0 = MediaInfo.from_filename(_IMG_STAIRCASE)
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    media = ngl.Media(m0.filename)
+    tex = ngl.Texture2D(data_src=media, mag_filter="linear", min_filter="linear")
+    bg = ngl.RenderTexture(tex)
+
+    move_updown_animkf = [
+        ngl.AnimKeyFrameVec3(0, (0, -ratio, 0)),
+        ngl.AnimKeyFrameVec3(1 / 3, (0, 0, 0), easing),
+        ngl.AnimKeyFrameVec3(2 / 3, (0, 0, 0), easing),
+        ngl.AnimKeyFrameVec3(1, (0, -ratio, 0), easing),
+    ]
+    move_updown = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(move_updown_animkf))
+
+    move_downup_animkf = [
+        ngl.AnimKeyFrameVec3(0, (0, ratio, 0)),
+        ngl.AnimKeyFrameVec3(1 / 3, (0, 0, 0), easing),
+        ngl.AnimKeyFrameVec3(2 / 3, (0, 0, 0), easing),
+        ngl.AnimKeyFrameVec3(1, (0, ratio, 0), easing),
+    ]
+    move_downup = ngl.Translate(ngl.Identity(), vector=ngl.AnimatedVec3(move_downup_animkf))
+
+    text_params = dict(
+        text="Stair\ncase",
+        font_files=_FONT_POPPINS,
+        bg_opacity=0,
+        aspect_ratio=cfg.aspect_ratio,
+        box_corner=(-0.5, -ratio, 0),
+        box_width=(1, 0, 0),
+        box_height=(0, 2 * ratio, 0),
+        font_scale=0.9,
+    )
+
+    text_up = ngl.Text(**text_params, effects=[ngl.TextEffect(start=0, end=d, transform=move_updown)])
+    text_down = ngl.Text(**text_params, effects=[ngl.TextEffect(start=0, end=d, transform=move_downup)])
+
+    mask_up_geom = ngl.Quad(corner=(-1, 0, 0), width=(2, 0, 0), height=(0, 1, 0))
+    mask_down_geom = ngl.Quad(corner=(-1, -1, 0), width=(2, 0, 0), height=(0, 1, 0))
+
+    text_up = mask_with_geometry(cfg, text_up, mask_down_geom, inverse=True)
+    text_down = mask_with_geometry(cfg, text_down, mask_up_geom, inverse=True)
+
+    line_height = 0.03
+    animkf = [
+        ngl.AnimKeyFrameVec3(0, (0, 1, 1)),
+        ngl.AnimKeyFrameVec3(d / 3, (1, 1, 1), easing),
+        ngl.AnimKeyFrameVec3(2 * d / 3, (1, 1, 1), easing),
+        ngl.AnimKeyFrameVec3(d, (0, 1, 1), easing),
+    ]
+    geom = ngl.Quad(corner=(-0.5, -line_height / 2, 0), width=(1, 0, 0), height=(0, line_height, 0))
+    hline = ngl.RenderColor(color=(1, 1, 1), geometry=geom, label="horizontal line")
+    hline = ngl.Scale(hline, factors=ngl.AnimatedVec3(animkf))
+
+    text = ngl.Group(children=(text_up, text_down, hline))
+    text = ngl.TimeRangeFilter(text, start=0, end=d)
+
+    return ngl.Group(children=(bg, text))
